@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="100%" height="100%">
+  <rect width="100%" height="100%" fill="#ffffff" rx="8" />
+  <rect width="100%" height="100%" fill="none" stroke="#e1e4e8" stroke-width="2" rx="8" />
+  
+  <!-- Title -->
+  <text x="30" y="45" font-family="-apple-system, sans-serif" font-size="20" font-weight="bold" fill="#0b5cad">MediaPipe Kinematic Tracking Architecture</text>
+  <text x="30" y="70" font-family="-apple-system, sans-serif" font-size="13" fill="#555555">Real-time In-Browser Vision Tasks & Angle Trigonometry</text>
+
+  <!-- Skeleton & Angle Section -->
+  <g transform="translate(80, 80)">
+    <!-- Body Bones -->
+    <line x1="200" y1="70" x2="120" y2="140" stroke="#ffd54a" stroke-width="6" /> <!-- Right Arm -->
+    <line x1="120" y1="140" x2="160" y2="220" stroke="#ffd54a" stroke-width="6" /> <!-- Right Forearm -->
+    <line x1="200" y1="70" x2="280" y2="140" stroke="#ffd54a" stroke-width="6" /> <!-- Left Arm -->
+    <line x1="200" y1="70" x2="200" y2="210" stroke="#ffd54a" stroke-width="6" /> <!-- Spine -->
+
+    <!-- Joint Nodes -->
+    <circle cx="200" cy="70" r="8" fill="#1a1a1a" stroke="#ffd54a" stroke-width="3" /> <!-- Shoulder -->
+    <circle cx="120" cy="140" r="10" fill="#0b5cad" stroke="#ffffff" stroke-width="3" /> <!-- Elbow Joint -->
+    <circle cx="160" cy="220" r="8" fill="#1a1a1a" stroke="#ffd54a" stroke-width="3" /> <!-- Wrist -->
+    <circle cx="280" cy="140" r="8" fill="#1a1a1a" stroke="#ffd54a" stroke-width="3" />
+
+    <!-- Angle Arc -->
+    <path d="M 148 115 A 35 35 0 0 1 134 168" fill="none" stroke="#d9376e" stroke-width="3" stroke-dasharray="3,3" />
+    <text x="75" y="150" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#d9376e">θ = 124°</text>
+  </g>
+
+  <!-- Model Pipeline Cards -->
+  <g transform="translate(440, 100)">
+    <!-- Hand Mesh Card -->
+    <rect x="0" y="0" width="310" height="70" fill="#f8f9fa" stroke="#0b5cad" stroke-width="1.5" rx="6" />
+    <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#0b5cad">Hand Landmarker</text>
+    <text x="20" y="52" font-family="-apple-system, sans-serif" font-size="12" fill="#555555">21 3D Spatial Landmarks / Finger Joints</text>
+
+    <!-- Face Mesh Card -->
+    <rect x="0" y="85" width="310" height="70" fill="#f8f9fa" stroke="#0b5cad" stroke-width="1.5" rx="6" />
+    <text x="20" y="115" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#0b5cad">Face Landmarker</text>
+    <text x="20" y="137" font-family="-apple-system, sans-serif" font-size="12" fill="#555555">478 High-Density Facial Mesh Coordinates</text>
+
+    <!-- Pose Card -->
+    <rect x="0" y="170" width="310" height="70" fill="#f8f9fa" stroke="#0b5cad" stroke-width="1.5" rx="6" />
+    <text x="20" y="200" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#0b5cad">Pose Landmarker</text>
+    <text x="20" y="222" font-family="-apple-system, sans-serif" font-size="12" fill="#555555">33 Joint Skeleton + Metric World (x,y,z)</text>
+  </g>
+</svg>

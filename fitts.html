@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>フィッツの法則 小実験</title>
+<style>
+  :root { --accent:#0b5cad; --ink:#1a1a1a; --sub:#555; --line:#999; --light:#e8f0f8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; line-height:1.7; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 12px; padding-bottom:8px; border-bottom:4px solid var(--accent); }
+  h2 { font-size:1.2rem; margin:32px 0 8px; }
+  p { margin:8px 0; }
+  .sub { color:var(--sub); font-size:.92rem; }
+  .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:end; margin:16px 0; }
+  label { display:flex; flex-direction:column; font-size:.92rem; gap:4px; }
+  select, button { font:inherit; padding:8px 12px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); }
+  button { cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+  button:disabled { opacity:.5; cursor:default; }
+  #status { font-weight:700; min-height:1.7em; margin:12px 0 8px; }
+  #stage { position:relative; width:100%; height:320px; border:2px solid var(--ink); background:#fff; touch-action:none; user-select:none; overflow:hidden; }
+  #stage.miss { background:#fdecec; }
+  #start, #target { position:absolute; display:none; }
+  #start { width:44px; height:44px; border-radius:50%; background:var(--ink); }
+  #start.active { outline:4px solid var(--accent); outline-offset:3px; }
+  #target { top:60px; height:200px; background:var(--light); border:2px solid var(--accent); }
+  #target.active { background:var(--accent); }
+  table { border-collapse:collapse; width:100%; font-size:.95rem; margin:8px 0; }
+  th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--accent); color:#fff; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .big { font-size:1.2rem; font-weight:700; color:var(--accent); }
+  canvas { max-width:100%; border:1px solid var(--line); }
+  #results { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>フィッツの法則 小実験</h1>
+  <p>黒い丸（開始点）をクリックし、続けて青い四角（目標）をクリックします。開始点を押してから目標を押すまでの時間を測ります。できるだけ速く、正確に行ってください。</p>
+  <p class="sub">条件は「近い・遠い」×「大きい・小さい」の4つです。順番はランダムに出ます。データはこのページの中だけで扱い、外部には送信しません。</p>
+
+  <div class="controls">
+    <label>1条件あたりの回数
+      <select id="reps"><option value="3">3回</option><option value="5" selected>5回</option><option value="10">10回</option></select>
+    </label>
+    <label>使う入力装置
+      <select id="device"><option>マウス</option><option>トラックパッド</option><option>タッチパネル</option><option>その他</option></select>
+    </label>
+    <button id="begin" class="primary">開始</button>
+  </div>
+
+  <div id="status">「開始」を押してください。</div>
+  <div id="stage"><div id="start"></div><div id="target"></div></div>
+
+  <section id="results">
+    <h2>結果</h2>
+    <p class="sub">時間の単位は秒。難しさは ID ＝ log₂(D ÷ W ＋ 1) で計算しています。D は開始点の中心から目標の中心までの距離、W は目標の幅（単位はピクセル）。</p>
+    <table id="summary"></table>
+    <p id="fit" class="big"></p>
+    <p class="sub">a と b は、4つの条件の平均から求めた直線 MT ＝ a ＋ b × ID の値です。</p>
+    <canvas id="plot" width="720" height="400" aria-label="難しさと移動時間のグラフ"></canvas>
+    <h2>1回ごとの記録</h2>
+    <table id="trials"></table>
+    <div class="controls">
+      <button id="csv">結果をCSVで保存</button>
+      <button id="again">もう一度行う</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var CONDS = [
+    { key: "near-large", label: "近い・大きい", D: 200, W: 80 },
+    { key: "near-small", label: "近い・小さい", D: 200, W: 20 },
+    { key: "far-large",  label: "遠い・大きい", D: 600, W: 80 },
+    { key: "far-small",  label: "遠い・小さい", D: 600, W: 20 }
+  ];
+  var stage = document.getElementById("stage");
+  var startEl = document.getElementById("start");
+  var targetEl = document.getElementById("target");
+  var statusEl = document.getElementById("status");
+  var beginBtn = document.getElementById("begin");
+  var resultsEl = document.getElementById("results");
+
+  var queue = [], records = [], current = null, t0 = 0, phase = "idle", misses = 0, scale = 1;
+
+  function log2(x) { return Math.log(x) / Math.LN2; }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function layout(cond) {
+    var w = stage.clientWidth;
+    // 開始点の中心を左から70px、遠い条件の目標が収まるように縮尺を決める
+    scale = Math.min(1, (w - 70 - 60) / 600);
+    var sx = 70, sy = stage.clientHeight / 2;
+    var D = cond.D * scale, W = Math.max(8, cond.W * scale);
+    startEl.style.left = (sx - 22) + "px";
+    startEl.style.top = (sy - 22) + "px";
+    targetEl.style.left = (sx + D - W / 2) + "px";
+    targetEl.style.width = W + "px";
+    return { D: D, W: W };
+  }
+
+  function next() {
+    if (queue.length === 0) { finish(); return; }
+    current = queue.shift();
+    current.geom = layout(current.cond);
+    misses = 0;
+    phase = "wait-start";
+    startEl.style.display = "block";
+    targetEl.style.display = "block";
+    startEl.classList.add("active");
+    targetEl.classList.remove("active");
+    var done = records.length, total = done + queue.length + 1;
+    statusEl.textContent = (done + 1) + " / " + total + " 回目：黒い丸をクリック";
+  }
+
+  function begin() {
+    var reps = parseInt(document.getElementById("reps").value, 10);
+    queue = [];
+    CONDS.forEach(function (c) { for (var i = 0; i < reps; i++) queue.push({ cond: c }); });
+    shuffle(queue);
+    records = [];
+    resultsEl.style.display = "none";
+    beginBtn.disabled = true;
+    next();
+  }
+
+  stage.addEventListener("pointerdown", function (ev) {
+    if (phase === "idle") return;
+    ev.preventDefault();
+    var el = ev.target;
+    if (phase === "wait-start") {
+      if (el === startEl) {
+        t0 = performance.now();
+        phase = "wait-target";
+        startEl.classList.remove("active");
+        targetEl.classList.add("active");
+        statusEl.textContent = statusEl.textContent.replace("黒い丸をクリック", "青い四角をクリック");
+      }
+      return;
+    }
+    if (phase === "wait-target") {
+      if (el === targetEl) {
+        var mt = performance.now() - t0;
+        records.push({
+          n: records.length + 1, key: current.cond.key, label: current.cond.label,
+          D: current.geom.D, W: current.geom.W,
+          ID: log2(current.geom.D / current.geom.W + 1), mt: mt, misses: misses
+        });
+        next();
+      } else {
+        misses++;
+        stage.classList.add("miss");
+        setTimeout(function () { stage.classList.remove("miss"); }, 120);
+      }
+    }
+  });
+
+  function mean(a) { return a.reduce(function (s, v) { return s + v; }, 0) / a.length; }
+
+  function summarize() {
+    return CONDS.map(function (c) {
+      var rs = records.filter(function (r) { return r.key === c.key; });
+      return {
+        label: c.label, D: rs[0].D, W: rs[0].W, ID: rs[0].ID,
+        times: rs.map(function (r) { return r.mt / 1000; }),
+        mean: mean(rs.map(function (r) { return r.mt / 1000; })),
+        misses: rs.reduce(function (s, r) { return s + r.misses; }, 0)
+      };
+    });
+  }
+
+  function regression(pts) {
+    var mx = mean(pts.map(function (p) { return p.ID; }));
+    var my = mean(pts.map(function (p) { return p.mean; }));
+    var sxy = 0, sxx = 0;
+    pts.forEach(function (p) { sxy += (p.ID - mx) * (p.mean - my); sxx += (p.ID - mx) * (p.ID - mx); });
+    var b = sxy / sxx;
+    return { a: my - b * mx, b: b };
+  }
+
+  function drawPlot(sum, fit) {
+    var cv = document.getElementById("plot"), g = cv.getContext("2d");
+    var L = 70, R = 30, T = 30, B = 60, w = cv.width - L - R, h = cv.height - T - B;
+    var xmax = Math.ceil(Math.max.apply(null, sum.map(function (s) { return s.ID; })) + 0.5);
+    var ymax = Math.max.apply(null, sum.map(function (s) { return s.mean; }).concat([fit.a + fit.b * xmax])) * 1.15;
+    function X(v) { return L + v / xmax * w; }
+    function Y(v) { return T + h - v / ymax * h; }
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height);
+    g.strokeStyle = "#1a1a1a"; g.lineWidth = 2; g.beginPath();
+    g.moveTo(L, T); g.lineTo(L, T + h); g.lineTo(L + w, T + h); g.stroke();
+    g.fillStyle = "#1a1a1a"; g.font = "14px sans-serif"; g.textAlign = "center";
+    for (var i = 0; i <= xmax; i++) { g.fillText(String(i), X(i), T + h + 20); }
+    g.fillText("難しさ ID", L + w / 2, T + h + 46);
+    g.textAlign = "right";
+    for (var k = 0; k <= 4; k++) { var v = ymax * k / 4; g.fillText(v.toFixed(2), L - 8, Y(v) + 5); }
+    g.save(); g.translate(18, T + h / 2); g.rotate(-Math.PI / 2); g.textAlign = "center";
+    g.fillText("移動時間 MT（秒）", 0, 0); g.restore();
+    g.strokeStyle = "#0b5cad"; g.lineWidth = 3; g.beginPath();
+    g.moveTo(X(0), Y(Math.max(0, fit.a))); g.lineTo(X(xmax), Y(fit.a + fit.b * xmax)); g.stroke();
+    g.fillStyle = "#1a1a1a"; g.textAlign = "left";
+    sum.forEach(function (s) {
+      g.beginPath(); g.arc(X(s.ID), Y(s.mean), 6, 0, Math.PI * 2); g.fill();
+      g.fillText(s.label, X(s.ID) + 10, Y(s.mean) - 8);
+    });
+  }
+
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+  function finish() {
+    phase = "idle";
+    startEl.style.display = "none"; targetEl.style.display = "none";
+    statusEl.textContent = "終了しました。下の結果を記録してください。";
+    beginBtn.disabled = false;
+    var sum = summarize(), fit = regression(sum);
+    var html = "<tr><th>条件</th><th>距離 D</th><th>幅 W</th><th>難しさ ID</th><th>1回ごとの時間</th><th>平均</th><th>押し間違い</th></tr>";
+    sum.forEach(function (s) {
+      html += "<tr><td>" + esc(s.label) + "</td><td class='num'>" + s.D.toFixed(0) + "</td><td class='num'>" + s.W.toFixed(0) +
+        "</td><td class='num'>" + s.ID.toFixed(2) + "</td><td>" + s.times.map(function (t) { return t.toFixed(2); }).join("、") +
+        "</td><td class='num'><b>" + s.mean.toFixed(2) + "</b></td><td class='num'>" + s.misses + "</td></tr>";
+    });
+    document.getElementById("summary").innerHTML = html;
+    document.getElementById("fit").textContent = "a ＝ " + fit.a.toFixed(2) + " 秒　　b ＝ " + fit.b.toFixed(2) + " 秒（難しさが1増えるごとに）";
+    drawPlot(sum, fit);
+    var th = "<tr><th>順番</th><th>条件</th><th>難しさ ID</th><th>時間（秒）</th><th>押し間違い</th></tr>";
+    records.forEach(function (r) {
+      th += "<tr><td class='num'>" + r.n + "</td><td>" + esc(r.label) + "</td><td class='num'>" + r.ID.toFixed(2) +
+        "</td><td class='num'>" + (r.mt / 1000).toFixed(3) + "</td><td class='num'>" + r.misses + "</td></tr>";
+    });
+    document.getElementById("trials").innerHTML = th;
+    resultsEl.style.display = "block";
+    resultsEl.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function saveCsv() {
+    var dev = document.getElementById("device").value;
+    var lines = ["trial,condition,D_px,W_px,ID,MT_ms,misses,device"];
+    records.forEach(function (r) {
+      lines.push([r.n, r.label, r.D.toFixed(1), r.W.toFixed(1), r.ID.toFixed(3), r.mt.toFixed(1), r.misses, dev].join(","));
+    });
+    var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "fitts_result.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  beginBtn.addEventListener("click", begin);
+  document.getElementById("again").addEventListener("click", function () { window.scrollTo(0, 0); begin(); });
+  document.getElementById("csv").addEventListener("click", saveCsv);
+  window.__fitts = { records: function () { return records; } };
+})();
+</script>
+</body>
+</html>

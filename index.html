@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Human-Computer Interaction (HCI) & Motion Analytics</title>
+    <style>
+        :root {
+            --accent: #0b5cad;
+            --ink: #1a1a1a;
+            --bg: #f4f7fa;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            padding: 40px 20px;
+        }
+
+        main {
+            max-width: 850px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--accent);
+            border-bottom: 3px solid var(--accent);
+            padding-bottom: 8px;
+        }
+
+        p {
+            font-size: 1.05rem;
+            line-height: 1.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 24px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            margin: 0 0 10px;
+            color: var(--accent);
+            font-size: 1.3rem;
+        }
+
+        .card p {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #555;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>Human-Computer Interaction (HCI) & Motion Analytics</h1>
+        <p>A web-based suite for analyzing human motor performance via Fitts's Law models and computer-vision landmark
+            tracking powered by Google MediaPipe.</p>
+
+        <div class="grid">
+            <a href="fitts.html" class="card">
+                <h2>Fitts's Law Motor Benchmark</h2>
+                <p>Evaluates target acquisition throughput ($MT = a + b \cdot ID$) across varying distances ($D$) and
+                    target widths ($W$) for pointing devices.</p>
+            </a>
+            <a href="mediapipe_3types.html" class="card">
+                <h2>MediaPipe Kinematic Tracker</h2>
+                <p>Real-time pose, face, and hand mesh extraction using browser-based neural network models with
+                    high-frequency time-series CSV logging.</p>
+            </a>
+        </div>
+    </main>
+</body>
+
+</html>

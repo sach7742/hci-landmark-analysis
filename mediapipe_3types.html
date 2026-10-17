@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediaPipe 動作確認</title>
+<style>
+  :root { --accent:#0b5cad; --ink:#1a1a1a; --sub:#555; --line:#999; --light:#e8f0f8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; line-height:1.7; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 12px; padding-bottom:8px; border-bottom:4px solid var(--accent); }
+  h2 { font-size:1.2rem; margin:28px 0 8px; }
+  p { margin:8px 0; }
+  .sub { color:var(--sub); font-size:.92rem; }
+  .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:16px 0; }
+  button { font:inherit; padding:8px 14px; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+  button:disabled { opacity:.5; cursor:default; }
+  label.chk { display:flex; gap:6px; align-items:center; }
+  #status { font-weight:700; padding:10px 14px; background:var(--light); border-left:6px solid var(--accent); }
+  #status.error { background:#fdecec; border-left-color:#b3261e; }
+  #view { position:relative; width:100%; max-width:800px; aspect-ratio:4 / 3; background:#f0f0f0; border:2px solid var(--ink); margin-top:12px; }
+  #view canvas { position:absolute; inset:0; width:100%; height:100%; }
+  video { display:none; }
+  table { border-collapse:collapse; font-size:.95rem; margin:8px 0; }
+  th, td { border:1px solid var(--line); padding:6px 10px; text-align:left; }
+  th { background:var(--accent); color:#fff; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; min-width:6em; }
+  ul { margin:8px 0; padding-left:1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MediaPipe 動作確認</h1>
+  <p>Webカメラの映像から、手、顔、全身の特徴となる点（ランドマーク）を推定して表示します。映像は鏡のように左右反転して表示します。</p>
+  <p class="sub">映像はこのPCの中だけで処理し、外部には送信しません。初回は、推定に使うモデルを読み込むため、表示まで少し時間がかかります。</p>
+
+  <div class="controls">
+    <button id="startBtn" class="primary">カメラを開始</button>
+    <button id="stopBtn" disabled>停止</button>
+    <label class="chk"><input type="checkbox" id="useHand" checked> 手（21点）</label>
+    <label class="chk"><input type="checkbox" id="useFace"> 顔（478点）</label>
+    <label class="chk"><input type="checkbox" id="usePose"> 全身（33点）</label>
+  </div>
+  <div id="status">「カメラを開始」を押してください。</div>
+
+  <div id="view"><canvas id="canvas" width="640" height="480" aria-label="カメラ映像とランドマーク"></canvas></div>
+  <video id="video" playsinline muted></video>
+
+  <h2>得られている数値</h2>
+  <table>
+    <tr><th>項目</th><th>値</th></tr>
+    <tr><td>1秒あたりの推定回数</td><td class="num" id="fps">-</td></tr>
+    <tr><td>検出した手の数</td><td class="num" id="nHands">-</td></tr>
+    <tr><td>検出した顔の数</td><td class="num" id="nFaces">-</td></tr>
+    <tr><td>検出した全身の数</td><td class="num" id="nPoses">-</td></tr>
+    <tr><td>右ひじの角度（度）</td><td class="num" id="angR">-</td></tr>
+    <tr><td>左ひじの角度（度）</td><td class="num" id="angL">-</td></tr>
+    <tr><td>人差し指の先（8番）の横位置 x</td><td class="num" id="ix">-</td></tr>
+    <tr><td>人差し指の先（8番）の縦位置 y</td><td class="num" id="iy">-</td></tr>
+  </table>
+  <p class="sub">x と y は、画像の左上を (0, 0)、右下を (1, 1) とした値です。x は反転前のカメラ画像での位置です。</p>
+  <p class="sub">ひじの角度は、肩・ひじ・手首の3点から計算しています。腕をまっすぐ伸ばすと180度に近づきます。「右」「左」は映っている本人から見た向きです。全身を映すときは、カメラから2〜3m離れてください。</p>
+
+  <h2>記録</h2>
+  <p>「記録を開始」を押すと、推定した点の位置を時刻つきで記録します。全身の点には、腰の中心を原点とするメートル単位の位置（wx、wy、wz）と、点が見えている確からしさ（visibility）も記録します。「記録を停止して保存」でCSVファイルを保存します。</p>
+  <div class="controls">
+    <button id="recBtn" disabled>記録を開始</button>
+    <span id="recInfo" class="sub"></span>
+  </div>
+
+  <h2>うまく動かないとき</h2>
+  <ul>
+    <li>カメラの使用を求める表示が出たら、「許可」を選ぶ</li>
+    <li>ほかのアプリ（Zoom、Teamsなど）がカメラを使っていないか確かめる</li>
+    <li>ブラウザは Chrome か Edge の新しい版を使う</li>
+    <li>ページの読み込みにはインターネット接続が必要</li>
+  </ul>
+</main>
+
+<script type="module">
+const MP_VERSION = "0.10.14";
+const MP_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@" + MP_VERSION;
+const HAND_MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+const POSE_MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+
+// 手の21点をつなぐ線（MediaPipe Hands の定義）
+const HAND_LINES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const TIP_IDS = [0, 4, 8, 12, 16, 20];
+// 全身の33点をつなぐ線（MediaPipe Pose の定義）
+const POSE_LINES = [[0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],[11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],[11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,29],[28,30],[29,31],[30,32],[27,31],[28,32]];
+
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const statusEl = $("status");
+let vision = null, lib = null, hand = null, face = null, pose = null;
+let stream = null, running = false, lastVideoTime = -1;
+let frames = 0, fpsT0 = 0;
+let recording = false, rows = [], recT0 = 0;
+
+function setStatus(msg, isError) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle("error", !!isError);
+}
+
+async function loadLib() {
+  if (lib) return;
+  lib = await import(MP_BASE + "/vision_bundle.mjs");
+  vision = await lib.FilesetResolver.forVisionTasks(MP_BASE + "/wasm");
+}
+
+async function createTask(Cls, modelPath, extra) {
+  const make = (delegate) => Cls.createFromOptions(vision, Object.assign({
+    baseOptions: { modelAssetPath: modelPath, delegate: delegate },
+    runningMode: "VIDEO"
+  }, extra));
+  try { return await make("GPU"); }
+  catch (e) { console.warn("GPUで初期化できなかったため、CPUで実行します", e); return await make("CPU"); }
+}
+
+async function ensureModels() {
+  await loadLib();
+  if ($("useHand").checked && !hand) {
+    setStatus("手のモデルを読み込んでいます…");
+    hand = await createTask(lib.HandLandmarker, HAND_MODEL, { numHands: 2 });
+  }
+  if ($("usePose").checked && !pose) {
+    setStatus("全身のモデルを読み込んでいます…");
+    pose = await createTask(lib.PoseLandmarker, POSE_MODEL, { numPoses: 1 });
+  }
+  if ($("useFace").checked && !face) {
+    setStatus("顔のモデルを読み込んでいます…");
+    face = await createTask(lib.FaceLandmarker, FACE_MODEL, { numFaces: 1 });
+  }
+}
+
+function cameraErrorMessage(e) {
+  switch (e && e.name) {
+    case "NotAllowedError": return "カメラの使用が許可されていません。アドレスバーのカメラの設定で「許可」を選び、ページを読み込み直してください。";
+    case "NotFoundError": return "カメラが見つかりません。カメラが接続されているか確かめてください。";
+    case "NotReadableError": return "カメラを使用できません。ほかのアプリがカメラを使っていないか確かめてください。";
+    default: return "カメラを開始できませんでした（" + (e && e.message ? e.message : e) + "）";
+  }
+}
+
+async function start() {
+  $("startBtn").disabled = true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus("このページの開き方ではカメラを使えません。https で始まるアドレスで開いてください。", true);
+    $("startBtn").disabled = false;
+    return;
+  }
+  try {
+    setStatus("カメラを開始しています…");
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+  } catch (e) {
+    setStatus(cameraErrorMessage(e), true);
+    $("startBtn").disabled = false;
+    return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  running = true;
+  $("stopBtn").disabled = false;
+  $("recBtn").disabled = false;
+  fpsT0 = performance.now(); frames = 0;
+  requestAnimationFrame(loop);
+  try {
+    await ensureModels();
+    setStatus("動作中です。");
+  } catch (e) {
+    console.error(e);
+    setStatus("モデルを読み込めませんでした。インターネット接続を確かめ、ページを読み込み直してください。", true);
+  }
+}
+
+function stop() {
+  running = false;
+  if (recording) toggleRecording();
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  $("startBtn").disabled = false;
+  $("stopBtn").disabled = true;
+  $("recBtn").disabled = true;
+  setStatus("停止しました。");
+}
+
+function drawMirroredVideo() {
+  ctx.save();
+  ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+
+// 反転表示に合わせて、x を左右入れ替えた画面上の位置を返す
+const px = (p) => (1 - p.x) * canvas.width;
+const py = (p) => p.y * canvas.height;
+
+function drawHands(result) {
+  for (const lm of result.landmarks) {
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4;
+    for (const [a, b] of HAND_LINES) {
+      ctx.beginPath(); ctx.moveTo(px(lm[a]), py(lm[a])); ctx.lineTo(px(lm[b]), py(lm[b])); ctx.stroke();
+    }
+    lm.forEach((p, i) => {
+      ctx.beginPath(); ctx.arc(px(p), py(p), TIP_IDS.includes(i) ? 7 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#0b5cad"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+    });
+    ctx.font = "bold 16px sans-serif"; ctx.textBaseline = "bottom";
+    for (const i of TIP_IDS) {
+      const x = px(lm[i]) + 8, y = py(lm[i]) - 6;
+      ctx.lineWidth = 4; ctx.strokeStyle = "#ffffff"; ctx.strokeText(String(i), x, y);
+      ctx.fillStyle = "#1a1a1a"; ctx.fillText(String(i), x, y);
+    }
+  }
+}
+
+function drawPoses(result) {
+  for (const lm of result.landmarks) {
+    const seen = (i) => (lm[i].visibility === undefined || lm[i].visibility > 0.5);
+    ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 4;
+    for (const [a, b] of POSE_LINES) {
+      if (!seen(a) || !seen(b)) continue;
+      ctx.beginPath(); ctx.moveTo(px(lm[a]), py(lm[a])); ctx.lineTo(px(lm[b]), py(lm[b])); ctx.stroke();
+    }
+    lm.forEach((p, i) => {
+      if (!seen(i)) return;
+      ctx.beginPath(); ctx.arc(px(p), py(p), 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#1a1a1a"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "#ffd54a"; ctx.stroke();
+    });
+  }
+}
+
+// 3点 a-b-c がつくる角度（度）。b が関節の位置
+function angleDeg(a, b, c) {
+  const u = [a.x - b.x, a.y - b.y, a.z - b.z], v = [c.x - b.x, c.y - b.y, c.z - b.z];
+  const dot = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const nu = Math.hypot(u[0], u[1], u[2]), nv = Math.hypot(v[0], v[1], v[2]);
+  if (nu === 0 || nv === 0) return NaN;
+  return Math.acos(Math.max(-1, Math.min(1, dot / (nu * nv)))) * 180 / Math.PI;
+}
+
+function drawFaces(result) {
+  ctx.fillStyle = "#ffffff";
+  for (const lm of result.faceLandmarks) {
+    for (const p of lm) { ctx.fillRect(px(p) - 1, py(p) - 1, 2, 2); }
+  }
+}
+
+function record(kind, index, lm, t, world) {
+  lm.forEach((p, i) => {
+    const w = world ? world[i] : null;
+    rows.push([t.toFixed(1), kind, index, i, p.x.toFixed(5), p.y.toFixed(5), p.z.toFixed(5),
+      w ? w.x.toFixed(5) : "", w ? w.y.toFixed(5) : "", w ? w.z.toFixed(5) : "",
+      (p.visibility !== undefined && world) ? p.visibility.toFixed(3) : ""].join(","));
+  });
+}
+
+function loop() {
+  if (!running) return;
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    const now = performance.now();
+    drawMirroredVideo();
+    let handRes = null, faceRes = null, poseRes = null;
+    try {
+      if (hand && $("useHand").checked) handRes = hand.detectForVideo(video, now);
+      if (face && $("useFace").checked) faceRes = face.detectForVideo(video, now);
+      if (pose && $("usePose").checked) poseRes = pose.detectForVideo(video, now);
+    } catch (e) { console.error(e); }
+    if (poseRes) drawPoses(poseRes);
+    if (faceRes) drawFaces(faceRes);
+    if (handRes) drawHands(handRes);
+    $("nHands").textContent = handRes ? handRes.landmarks.length : "-";
+    $("nFaces").textContent = faceRes ? faceRes.faceLandmarks.length : "-";
+    $("nPoses").textContent = poseRes ? poseRes.landmarks.length : "-";
+    if (poseRes && poseRes.worldLandmarks && poseRes.worldLandmarks.length > 0) {
+      const w = poseRes.worldLandmarks[0];
+      const r = angleDeg(w[12], w[14], w[16]), l = angleDeg(w[11], w[13], w[15]);
+      $("angR").textContent = isNaN(r) ? "-" : r.toFixed(0);
+      $("angL").textContent = isNaN(l) ? "-" : l.toFixed(0);
+    } else { $("angR").textContent = "-"; $("angL").textContent = "-"; }
+    if (handRes && handRes.landmarks.length > 0) {
+      $("ix").textContent = handRes.landmarks[0][8].x.toFixed(3);
+      $("iy").textContent = handRes.landmarks[0][8].y.toFixed(3);
+    } else { $("ix").textContent = "-"; $("iy").textContent = "-"; }
+    if (recording) {
+      const t = now - recT0;
+      if (handRes) handRes.landmarks.forEach((lm, k) => record("hand", k, lm, t));
+      if (faceRes) faceRes.faceLandmarks.forEach((lm, k) => record("face", k, lm, t));
+      if (poseRes) poseRes.landmarks.forEach((lm, k) => record("pose", k, lm, t, poseRes.worldLandmarks ? poseRes.worldLandmarks[k] : null));
+      $("recInfo").textContent = "記録中：" + (t / 1000).toFixed(1) + " 秒、" + rows.length + " 行";
+    }
+    frames++;
+    if (now - fpsT0 >= 1000) {
+      $("fps").textContent = (frames * 1000 / (now - fpsT0)).toFixed(0);
+      frames = 0; fpsT0 = now;
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+function toggleRecording() {
+  if (!recording) {
+    rows = []; recT0 = performance.now(); recording = true;
+    $("recBtn").textContent = "記録を停止して保存";
+    return;
+  }
+  recording = false;
+  $("recBtn").textContent = "記録を開始";
+  $("recInfo").textContent = rows.length + " 行を保存しました。";
+  const header = "t_ms,kind,index,landmark,x,y,z,wx,wy,wz,visibility";
+  const blob = new Blob([header + "\r\n" + rows.join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "mediapipe_" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+$("startBtn").addEventListener("click", start);
+$("stopBtn").addEventListener("click", stop);
+$("recBtn").addEventListener("click", toggleRecording);
+for (const id of ["useHand", "useFace", "usePose"]) {
+  $(id).addEventListener("change", async () => {
+    if (!running) return;
+    try { await ensureModels(); setStatus("動作中です。"); }
+    catch (e) { console.error(e); setStatus("モデルを読み込めませんでした。インターネット接続を確かめてください。", true); }
+  });
+}
+</script>
+</body>
+</html>
