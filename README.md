@@ -37,7 +37,7 @@ A comprehensive, browser-native suite for evaluating human-computer interaction 
 
 ### 🧠 Theoretical Background & Mathematical Model
 
-Fitts's Law (Fitts, 1954; modified by MacKenzie, 1992) is a fundamental model of human psychomotor performance. It quantifies the trade-off between speed and accuracy when pointing to a target using an input device (e.g., mouse, trackpad, touchscreen, or finger gesture).
+Fitts's Law (Fitts, 1954; modified by MacKenzie,  1992) is a fundamental model of human psychomotor performance. It quantifies the trade-off between speed and accuracy when pointing to a target using an input device (e.g., mouse, trackpad, touchscreen, or finger gesture).
 
 #### 1. Index of Difficulty ($ID$)
 
