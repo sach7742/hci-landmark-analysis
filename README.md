@@ -7,8 +7,9 @@ A comprehensive, browser-native suite for evaluating human-computer interaction 
 ## 📸 System Diagrams & Modeling
 
 | Fitts's Law Task Paradigm | MediaPipe Tracking Pipeline |
-| --- | --- |
-|  |  |
+| :---: | :---: |
+| <img src="fitts_diagram.svg" width="400" alt="Fitts Law Diagram"> | <img src="mediapipe_diagram.svg" width="400" alt="MediaPipe Diagram"> |
+
 
 ---
 

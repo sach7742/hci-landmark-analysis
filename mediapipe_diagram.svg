@@ -1,13 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="100%" height="100%">
-  <!-- Solid White Background Layer -->
   <rect width="800" height="400" fill="#ffffff" />
   <rect x="1" y="1" width="798" height="398" fill="none" stroke="#e1e4e8" stroke-width="2" rx="8" />
   
-  <!-- Header Text -->
   <text x="30" y="45" font-family="-apple-system, sans-serif" font-size="20" font-weight="bold" fill="#0b5cad">MediaPipe Kinematic Tracking Architecture</text>
-  <text x="30" y="70" font-family="-apple-system, sans-serif" font-size="13" fill="#555555">Real-time In-Browser Vision Tasks & Angle Trigonometry</text>
+  <text x="30" y="70" font-family="-apple-system, sans-serif" font-size="13" fill="#555555">Real-time In-Browser Vision Tasks and Angle Trigonometry</text>
 
-  <!-- Skeleton Diagram -->
   <g transform="translate(80, 80)">
     <line x1="200" y1="70" x2="120" y2="140" stroke="#ffd54a" stroke-width="6" />
     <line x1="120" y1="140" x2="160" y2="220" stroke="#ffd54a" stroke-width="6" />
@@ -23,7 +20,6 @@
     <text x="75" y="150" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#d9376e">θ = 124°</text>
   </g>
 
-  <!-- Side Cards -->
   <g transform="translate(440, 100)">
     <rect x="0" y="0" width="310" height="70" fill="#f8f9fa" stroke="#0b5cad" stroke-width="1.5" rx="6" />
     <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#0b5cad">Hand Landmarker</text>
